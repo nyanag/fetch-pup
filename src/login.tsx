@@ -12,7 +12,7 @@ const LoginForm: React.FC<LoginFormProps> = ({ apiUrl }) => {
     try {
       setLoading(true);
 
-      const response = await fetch(apiUrl, {
+      const response = await fetch(apiUrl + 'auth/login', {
         method: 'POST',
         credentials: 'include',
         body: JSON.stringify(values),
