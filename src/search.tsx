@@ -1,9 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Select, Pagination, Button } from 'antd';
-import { Dog } from './types'; // Assuming you have the Dog and Location types defined
-
+import { Card, Select, Pagination, Button, Col, Row, Divider } from 'antd';
+import { Dog } from './types'; 
 interface SearchPageProps {
-  matchEndpoint?: string; // Endpoint for generating the match
   apiUrl: string;
 }
 
@@ -16,18 +14,16 @@ interface SearchResponse {
 
 const SearchPage: React.FC<SearchPageProps> = ({ apiUrl }) => {
   const [dogs, setDogs] = useState<Dog[]>([]);
-  const [dogIds, setDogIds] = useState([]);
-  const [filteredDogs, setFilteredDogs] = useState<Dog[]>([]);
+  const [dogIds, setDogIds] = useState<string[]>([]);
   const [selectedDogs, setSelectedDogs] = useState<Dog[]>([]);
   const [filterBreed, setFilterBreed] = useState<string | undefined>(undefined);
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [dogsPerPage] = useState<number>(10);
-
   const [breedOptions, setBreedOptions] = useState<string[]>([]);
+  const [match, setMatch] = useState<Dog[]>([]);
 
   const fetchDogs = async () => {
-    console.log('DOG IDS', dogIds)
     try {
       const response = await fetch(apiUrl + 'dogs', {
         method: 'POST',
@@ -39,7 +35,7 @@ const SearchPage: React.FC<SearchPageProps> = ({ apiUrl }) => {
       });
       if (response.ok) {
         const data: Dog[] = await response.json();
-        console.log(data)
+        console.log("DOGS",data)
         setDogs(data);
       } else {
         throw new Error('Failed to fetch dogs');
@@ -99,14 +95,14 @@ const SearchPage: React.FC<SearchPageProps> = ({ apiUrl }) => {
     };
 
     fetchBreeds();
-  }, [currentPage]);
+  }, []);
 
   // Fetch dogs data based on search criteria
   useEffect(() => {
-    const fetchDogs = async () => {
+    const fetchFilterDogs = async () => {
       try {
         const queryParams = new URLSearchParams({
-          breeds: filterBreed ? JSON.stringify([filterBreed]) : '',
+          breed: filterBreed ? JSON.stringify([filterBreed]) : '',
           size: dogsPerPage.toString(),
           sort: `breed:${sortOrder}`,
           from: ((currentPage - 1) * dogsPerPage).toString(),
@@ -120,10 +116,10 @@ const SearchPage: React.FC<SearchPageProps> = ({ apiUrl }) => {
           },});
         if (response.ok) {
           const data: SearchResponse = await response.json();
-          console.log(data, dogs)
-          if(data.resultIds){
-            //setFilteredDogs(data.resultIds.map((id) => dogs.find((dog) => dog.id === id)).filter(Boolean));
-          }
+          console.log(data)
+          setDogIds(data.resultIds)
+          console.log(dogIds)
+          fetchDogs();
         } else {
           throw new Error('Failed to fetch dogs');
         }
@@ -132,9 +128,50 @@ const SearchPage: React.FC<SearchPageProps> = ({ apiUrl }) => {
       }
     };
 
-    fetchDogs();
+    fetchFilterDogs();
   }, [filterBreed, sortOrder, currentPage]);
 
+    // Handle match generation
+    const handleGenerateMatch = async () => {
+      console.log(selectedDogs)
+      const selectedDogIds = selectedDogs.map(dog => dog.id);
+      try {
+        const response = await fetch(apiUrl + 'dogs/match', {
+          method: 'POST',
+          credentials: 'include',
+          body: JSON.stringify(selectedDogIds),
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        });
+        if (response.ok) {
+          const data = await response.json();
+          // Handle the generated match data
+          console.log('Generated match:', data);
+          const response1 = await fetch(apiUrl + 'dogs', {
+            method: 'POST',
+            credentials: 'include',
+            body: JSON.stringify([data.match]),
+            headers: {
+              'Content-Type': 'application/json',
+            }
+          });
+          if (response1.ok) {
+            const data: Dog[] = await response1.json();
+            console.log("Match",data)
+            setMatch(data);
+          } else {
+            throw new Error('Failed to fetch dogs');
+          }
+        } else {
+          throw new Error('Failed to generate match');
+        }
+      } catch (error) {
+        console.error(error);
+      }
+    };
+
+    
   // Handle breed filter change
   const handleFilterBreedChange = (value: string) => {
     setFilterBreed(value);
@@ -178,7 +215,10 @@ const SearchPage: React.FC<SearchPageProps> = ({ apiUrl }) => {
         </Select>
       </div>
       <div style={{ marginTop: 16 }}>
+      <Row gutter={[16,24]}>
         {dogs.map((dog) => (
+
+        <Col className="gutter-row" span={8}>
           <Card
             key={dog.id}
             style={{ width: 300, marginBottom: 16 }}
@@ -193,22 +233,42 @@ const SearchPage: React.FC<SearchPageProps> = ({ apiUrl }) => {
             <p>Name: {dog.name}</p>
             <p>Zip Code: {dog.zip_code}</p>
           </Card>
+        </Col>
         ))}
+        </Row>
       </div>
       <Pagination
         style={{ marginTop: 16, textAlign: 'center' }}
         current={currentPage}
         pageSize={dogsPerPage}
-        total={filteredDogs.length}
+        total={dogs.length}
         onChange={handlePageChange}
       />
-      <div style={{ marginTop: 16 }}>
+      <div style={{ marginTop: 16, marginBottom:24 }}>
         <h2>Selected Dogs:</h2>
         {selectedDogs.map((dog) => (
-          <div key={dog.id}>{dog.name}</div>
+          <div key={dog.id}>{dog.name}, {dog.breed}</div>
         ))}
 
       </div>
+
+      <Button type="primary" onClick={handleGenerateMatch} disabled={selectedDogs.length === 0}>
+          Generate Match
+        </Button>
+
+        <Divider orientation="left">You've found your match!</Divider>
+        {match?.map((dog) => (
+
+          <Card
+            key={dog.id}
+            style={{ width: 300, marginBottom: 16 }}
+            cover={<img alt={dog.breed} src={dog.img} />}
+          >
+            <Card.Meta title={dog.breed} description={`Age: ${dog.age}`} />
+            <p>Name: {dog.name}</p>
+            <p>Zip Code: {dog.zip_code}</p>
+          </Card>
+        ))}
     </div>
   );
 };
