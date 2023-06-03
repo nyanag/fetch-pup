@@ -16,8 +16,8 @@ interface SearchResponse {
 
 const SearchPage: React.FC<SearchPageProps> = ({ apiUrl }) => {
   const [dogs, setDogs] = useState<Dog[]>([]);
-  const [cities, setCities] = useState<string[]>([]);
-  const [zipCodes, setZipCodes] = useState<string[]>([]);
+  const [cities, setCities] = useState<Location[]>([]);
+  const [selectedCity, setSelectedCity] = useState<string>('');
   const [dogIds, setDogIds] = useState<string[]>([]);
   const [selectedDogs, setSelectedDogs] = useState<Dog[]>([]);
   const [filterBreed, setFilterBreed] = useState<string | undefined>("Chihuahua");
@@ -77,28 +77,52 @@ const SearchPage: React.FC<SearchPageProps> = ({ apiUrl }) => {
     }
   };
 
-    // Fetch breed options from the API
-    const fetchLocations = async () => {
-      try {
-        const response = await fetch(apiUrl + 'locations/search', {
-          method: 'POST',
-          credentials: 'include',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-        });
-        if (response.ok) {
-          const data = await response.json();
-          setCities(data.results.map((location: { city: any; }) => location.city));
-          setZipCodes(data.results.map((location: { zipcode: any; }) => location.zipcode));
-        } else {
-          throw new Error('Failed to fetch breed options');
-        }
-      } catch (error) {
-        console.error(error);
+  // Fetch location/ city options from the API
+  const fetchLocations = async () => {
+    try {
+      const response = await fetch(apiUrl + 'locations/search', {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setCities(data.results);
+      } else {
+        throw new Error('Failed to fetch breed options');
       }
-    };
-  
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  const fetchDogsByCity = async (city: string) => {
+    const queryParams = new URLSearchParams({
+      zipCodes: JSON.stringify([city]),
+    });
+
+    try {
+      const response = await fetch(apiUrl + `dogs/search?${queryParams}`, {
+        method: 'GET',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      if (response.ok) {
+        const data = await response.json();
+        console.log('[fetchDogsByCity]', data)
+        setDogs(data.resultIds);
+      } else {
+        throw new Error('Failed to fetch dogs');
+      }
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
   // Fetch dog details from the API
   const fetchDogDetails = async () => {
     try {
@@ -165,51 +189,57 @@ const SearchPage: React.FC<SearchPageProps> = ({ apiUrl }) => {
       fetchDogs();
     }
   }, [dogIds]);
+
+  useEffect(() => {
+    if (selectedCity) {
+      fetchDogsByCity(selectedCity);
+    }
+  }, [selectedCity]);
   
   useEffect(() => {
     fetchFilteredDogs();
   }, [filterBreed, currentPage]);
   
 
-    // Handle match generation
-    const handleGenerateMatch = async () => {
-      console.log(selectedDogs)
-      const selectedDogIds = selectedDogs.map(dog => dog.id);
-      try {
-        const response = await fetch(apiUrl + 'dogs/match', {
+  // Handle match generation
+  const handleGenerateMatch = async () => {
+    console.log(selectedDogs)
+    const selectedDogIds = selectedDogs.map(dog => dog.id);
+    try {
+      const response = await fetch(apiUrl + 'dogs/match', {
+        method: 'POST',
+        credentials: 'include',
+        body: JSON.stringify(selectedDogIds),
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      if (response.ok) {
+        const data = await response.json();
+        // Handle the generated match data
+        console.log('Generated match:', data);
+        const response1 = await fetch(apiUrl + 'dogs', {
           method: 'POST',
           credentials: 'include',
-          body: JSON.stringify(selectedDogIds),
+          body: JSON.stringify([data.match]),
           headers: {
             'Content-Type': 'application/json',
-          },
-        });
-        if (response.ok) {
-          const data = await response.json();
-          // Handle the generated match data
-          console.log('Generated match:', data);
-          const response1 = await fetch(apiUrl + 'dogs', {
-            method: 'POST',
-            credentials: 'include',
-            body: JSON.stringify([data.match]),
-            headers: {
-              'Content-Type': 'application/json',
-            }
-          });
-          if (response1.ok) {
-            const data: Dog[] = await response1.json();
-            console.log("Match",data)
-            setMatch(data);
-          } else {
-            throw new Error('Failed to fetch dogs');
           }
+        });
+        if (response1.ok) {
+          const data: Dog[] = await response1.json();
+          console.log("Match",data)
+          setMatch(data);
         } else {
-          throw new Error('Failed to generate match');
+          throw new Error('Failed to fetch dogs');
         }
-      } catch (error) {
-        console.error(error);
+      } else {
+        throw new Error('Failed to generate match');
       }
-    };
+    } catch (error) {
+      console.error(error);
+    }
+  };
 
     
   // Handle breed filter change
@@ -219,7 +249,9 @@ const SearchPage: React.FC<SearchPageProps> = ({ apiUrl }) => {
   };
 
   // Handle breed filter change
-  const handleFilterLocationChange = (value: Location) => {
+  const handleFilterLocationChange = (value: string) => {
+    console.log(value)
+    setSelectedCity(value)
     setCurrentPage(1); // Reset to the first page when changing the filter
   };
 
@@ -285,9 +317,9 @@ const SearchPage: React.FC<SearchPageProps> = ({ apiUrl }) => {
           allowClear
           onChange={handleFilterLocationChange}
         >
-          {cities.map((city) => (
-            <Select.Option key={city} value={city}>
-              {city}
+          {cities.map((location) => (
+            <Select.Option key={location.zip_code} value={location.zip_code}>
+              {location.city}
             </Select.Option>
           ))}
         </Select>
