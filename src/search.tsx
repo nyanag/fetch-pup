@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Card, Select, Pagination, Button, Col, Row, Divider } from 'antd';
-import { Dog } from './types'; 
+import { Dog } from './types';
+import './styles.css';
+
 interface SearchPageProps {
   apiUrl: string;
 }
@@ -190,14 +192,31 @@ const SearchPage: React.FC<SearchPageProps> = ({ apiUrl }) => {
 
   // Handle favorite dog selection
   const handleDogSelect = (dog: Dog) => {
-    setSelectedDogs((prevSelectedDogs) => [...prevSelectedDogs, dog]);
+    setSelectedDogs((prevSelectedDogs) => {
+      if (prevSelectedDogs.some((selectedDog) => selectedDog.id === dog.id)) {
+        // Dog already exists in the list, do nothing
+        return prevSelectedDogs;
+      } else {
+        // Add the dog to the list
+        return [...prevSelectedDogs, dog];
+      }
+    });
   };
 
+  //Handle removing dog from favorites
+  const handleDogRemove = (dog: Dog) => {
+    setSelectedDogs((prevSelectedDogs) => {
+      const updatedSelectedDogs = prevSelectedDogs.filter((selectedDog) => selectedDog.id !== dog.id);
+      return updatedSelectedDogs;
+    });
+  };
 
   return (
-    <div>
-      <div>
+    <div className='search-container'>
+      <div className='dropdown-container'>
+      <h3>Filter by breed</h3>
         <Select
+        showSearch
           style={{ width: 200 }}
           placeholder="Filter by breed"
           allowClear
@@ -209,6 +228,7 @@ const SearchPage: React.FC<SearchPageProps> = ({ apiUrl }) => {
             </Select.Option>
           ))}
         </Select>
+        <h3>Sort order</h3>
         <Select style={{ width: 120 }} defaultValue="asc" onChange={handleSortOrderChange}>
           <Select.Option value="asc">Ascending</Select.Option>
           <Select.Option value="desc">Descending</Select.Option>
@@ -216,26 +236,28 @@ const SearchPage: React.FC<SearchPageProps> = ({ apiUrl }) => {
       </div>
       <div style={{ marginTop: 16 }}>
       <Row gutter={[16,24]}>
-        {dogs.map((dog) => (
-
-        <Col className="gutter-row" span={8}>
-          <Card
-            key={dog.id}
-            style={{ width: 300, marginBottom: 16 }}
-            cover={<img alt={dog.breed} src={dog.img} />}
-            actions={[
-              <Button onClick={() => handleDogSelect(dog)} key={dog.id}>
-                Add to Favorites
-              </Button>,
-            ]}
-          >
-            <Card.Meta title={dog.breed} description={`Age: ${dog.age}`} />
-            <p>Name: {dog.name}</p>
-            <p>Zip Code: {dog.zip_code}</p>
-          </Card>
-        </Col>
-        ))}
-        </Row>
+        {dogs.length > 0 ? (
+          dogs.map((dog) => (
+            <Col className="gutter-row" span={8} key={dog.id}>
+              <Card
+                style={{ width: 300, marginBottom: 16 }}
+                cover={<img alt={dog.breed} src={dog.img} />}
+                actions={[
+                  <Button onClick={() => handleDogSelect(dog)} key={dog.id}>
+                    Add to Favorites
+                  </Button>,
+                ]}
+              >
+                <Card.Meta title={dog.breed} description={`Age: ${dog.age}`} />
+                <p>Name: {dog.name}</p>
+                <p>Zip Code: {dog.zip_code}</p>
+              </Card>
+            </Col>
+          ))
+        ) : (
+          <div>Set the filters to view dogs!</div>
+        )}
+      </Row>
       </div>
       <Pagination
         style={{ marginTop: 16, textAlign: 'center' }}
@@ -246,9 +268,26 @@ const SearchPage: React.FC<SearchPageProps> = ({ apiUrl }) => {
       />
       <div style={{ marginTop: 16, marginBottom:24 }}>
         <h2>Selected Dogs:</h2>
+      <Row gutter={[16,24]}>
         {selectedDogs.map((dog) => (
-          <div key={dog.id}>{dog.name}, {dog.breed}</div>
+          <Col className="gutter-row" span={8}>
+          <Card
+            key={dog.id}
+            style={{ width: 300, marginBottom: 16 }}
+            cover={<img alt={dog.breed} src={dog.img} />}
+            actions={[
+              <Button onClick={() => handleDogRemove(dog)} key={dog.id}>
+                Remove from Favorites
+              </Button>,
+            ]}
+          >
+            <Card.Meta title={dog.breed} description={`Age: ${dog.age}`} />
+            <p>Name: {dog.name}</p>
+            <p>Zip Code: {dog.zip_code}</p>
+          </Card>
+        </Col>
         ))}
+      </Row>
 
       </div>
 
@@ -256,9 +295,10 @@ const SearchPage: React.FC<SearchPageProps> = ({ apiUrl }) => {
           Generate Match
         </Button>
 
-        <Divider orientation="left">You've found your match!</Divider>
+        
         {match?.map((dog) => (
-
+          <> 
+          <Divider orientation="left">You've found your match!</Divider>
           <Card
             key={dog.id}
             style={{ width: 300, marginBottom: 16 }}
@@ -268,6 +308,7 @@ const SearchPage: React.FC<SearchPageProps> = ({ apiUrl }) => {
             <p>Name: {dog.name}</p>
             <p>Zip Code: {dog.zip_code}</p>
           </Card>
+          </>
         ))}
     </div>
   );
