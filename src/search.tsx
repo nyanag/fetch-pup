@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Card, Select, Pagination, Button, Col, Row, Divider } from 'antd';
-import { Dog } from './types';
+import { Dog, Location } from './types';
 import './styles.css';
 
 interface SearchPageProps {
@@ -16,14 +16,23 @@ interface SearchResponse {
 
 const SearchPage: React.FC<SearchPageProps> = ({ apiUrl }) => {
   const [dogs, setDogs] = useState<Dog[]>([]);
+  const [cities, setCities] = useState<string[]>([]);
+  const [zipCodes, setZipCodes] = useState<string[]>([]);
   const [dogIds, setDogIds] = useState<string[]>([]);
   const [selectedDogs, setSelectedDogs] = useState<Dog[]>([]);
-  const [filterBreed, setFilterBreed] = useState<string | undefined>(undefined);
-  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
+  const [filterBreed, setFilterBreed] = useState<string | undefined>("Chihuahua");
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'|''>('');
+  const [isSortSet, setIsSort] = useState<boolean>(false);
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [dogsPerPage] = useState<number>(10);
   const [breedOptions, setBreedOptions] = useState<string[]>([]);
   const [match, setMatch] = useState<Dog[]>([]);
+  const filterBreedRef = useRef<string | undefined>(filterBreed);
+
+  //update filterBreed - Pagination fixes
+  useEffect(() => {
+    filterBreedRef.current = filterBreed;
+  }, [filterBreed]);
 
   const fetchDogs = async () => {
     try {
@@ -33,11 +42,11 @@ const SearchPage: React.FC<SearchPageProps> = ({ apiUrl }) => {
         body: JSON.stringify(dogIds),
         headers: {
           'Content-Type': 'application/json',
-        }
+        },
       });
       if (response.ok) {
         const data: Dog[] = await response.json();
-        console.log("DOGS",data)
+        console.log("DOGS DETAILS [fetchDogs]", data);
         setDogs(data);
       } else {
         throw new Error('Failed to fetch dogs');
@@ -46,92 +55,121 @@ const SearchPage: React.FC<SearchPageProps> = ({ apiUrl }) => {
       console.error(error);
     }
   };
-
+  
   // Fetch breed options from the API
-  useEffect(() => {
-    // Fetch the breed options using the /dogs/breeds endpoint
-    const fetchBreeds = async () => {
+  const fetchBreeds = async () => {
+    try {
+      const response = await fetch(apiUrl + 'dogs/breeds', {
+        method: 'GET',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setBreedOptions(data);
+      } else {
+        throw new Error('Failed to fetch breed options');
+      }
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+    // Fetch breed options from the API
+    const fetchLocations = async () => {
       try {
-        const response = await fetch(apiUrl + 'dogs/breeds', {
-          method: 'GET',
+        const response = await fetch(apiUrl + 'locations/search', {
+          method: 'POST',
           credentials: 'include',
           headers: {
             'Content-Type': 'application/json',
-          },});
-        if (response.ok) {
-          const data = await response.json();
-          setBreedOptions(data);
-        } else {
-          throw new Error('Failed to fetch breed options');
-        }
-      } catch (error) {
-        console.error(error);
-      }
-    };
-
-    fetchBreeds();
-  }, []);
-
-  // Fetch dog details from the API
-  useEffect(() => {
-    // Fetch the dog details using the /dogs/search endpoint
-    const fetchBreeds = async () => {
-      try {
-        const response = await fetch(apiUrl + 'dogs/search', {
-          method: 'GET',
-          credentials: 'include',
-          headers: {
-            'Content-Type': 'application/json',
-          },});
-        if (response.ok) {
-          const data = await response.json();
-          console.log("DETAILS", data);
-          setDogIds(data.resultIds);
-          fetchDogs();
-        } else {
-          throw new Error('Failed to fetch breed options');
-        }
-      } catch (error) {
-        console.error(error);
-      }
-    };
-
-    fetchBreeds();
-  }, []);
-
-  // Fetch dogs data based on search criteria
-  useEffect(() => {
-    const fetchFilterDogs = async () => {
-      try {
-        const queryParams = new URLSearchParams({
-          breed: filterBreed ? JSON.stringify([filterBreed]) : '',
-          size: dogsPerPage.toString(),
-          sort: `breed:${sortOrder}`,
-          from: ((currentPage - 1) * dogsPerPage).toString(),
+          },
         });
-        console.log(queryParams)
-        const response = await fetch(apiUrl + `dogs/search?${queryParams}`, {
-          method: 'GET',
-          credentials: 'include',
-          headers: {
-            'Content-Type': 'application/json',
-          },});
         if (response.ok) {
-          const data: SearchResponse = await response.json();
-          console.log(data)
-          setDogIds(data.resultIds)
-          console.log(dogIds)
-          fetchDogs();
+          const data = await response.json();
+          setCities(data.results.map((location: { city: any; }) => location.city));
+          setZipCodes(data.results.map((location: { zipcode: any; }) => location.zipcode));
         } else {
-          throw new Error('Failed to fetch dogs');
+          throw new Error('Failed to fetch breed options');
         }
       } catch (error) {
         console.error(error);
       }
     };
-
-    fetchFilterDogs();
-  }, [filterBreed, sortOrder, currentPage]);
+  
+  // Fetch dog details from the API
+  const fetchDogDetails = async () => {
+    try {
+      const response = await fetch(apiUrl + 'dogs/search', {
+        method: 'GET',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      if (response.ok) {
+        const data = await response.json();
+        console.log("[fetchDogDetails]", data);
+        setDogIds(data.resultIds);
+      } else {
+        throw new Error('Failed to fetch dog details');
+      }
+    } catch (error) {
+      console.error(error);
+    }
+  };
+  
+  // Fetch dogs data based on search criteria
+  const fetchFilteredDogs = async () => {
+    console.log(filterBreed, sortOrder, isSortSet)
+    try {
+      const queryParams = new URLSearchParams({
+        breed: filterBreedRef.current ? JSON.stringify([filterBreedRef.current]) : '',
+        size: dogsPerPage.toString(),
+        sort: isSortSet? `breed:${sortOrder}` : '',
+        from: ((currentPage - 1) * dogsPerPage).toString(),
+      });
+  
+      const response = await fetch(apiUrl + `dogs/search?${queryParams}`, {
+        method: 'GET',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+  
+      if (response.ok) {
+        const data: SearchResponse = await response.json();
+        console.log("[fetchFilteredDogs]",data);
+        setDogIds(data.resultIds);
+      } else {
+        throw new Error('Failed to fetch filtered dogs');
+      }
+    } catch (error) {
+      console.error(error);
+    }
+  };
+  
+  useEffect(() => {
+    console.log('[Fetching breeds and dog details]')
+    fetchBreeds();
+    fetchLocations();
+    fetchDogDetails();
+  }, []);
+  
+  useEffect(() => {
+    console.log('[Fetching dog details]')
+    if (dogIds.length > 0) {
+      fetchDogs();
+    }
+  }, [dogIds]);
+  
+  useEffect(() => {
+    fetchFilteredDogs();
+  }, [filterBreed, currentPage]);
+  
 
     // Handle match generation
     const handleGenerateMatch = async () => {
@@ -180,6 +218,11 @@ const SearchPage: React.FC<SearchPageProps> = ({ apiUrl }) => {
     setCurrentPage(1); // Reset to the first page when changing the filter
   };
 
+  // Handle breed filter change
+  const handleFilterLocationChange = (value: Location) => {
+    setCurrentPage(1); // Reset to the first page when changing the filter
+  };
+
   // Handle sort order change
   const handleSortOrderChange = (value: 'asc' | 'desc') => {
     setSortOrder(value);
@@ -211,6 +254,12 @@ const SearchPage: React.FC<SearchPageProps> = ({ apiUrl }) => {
     });
   };
 
+  //TESTING filter only for sorting
+  const handleFilter = () => {
+    setIsSort(true);
+    fetchFilteredDogs();
+  }
+
   return (
     <div className='search-container'>
       <div className='dropdown-container'>
@@ -228,17 +277,35 @@ const SearchPage: React.FC<SearchPageProps> = ({ apiUrl }) => {
             </Select.Option>
           ))}
         </Select>
+        <h3>Filter by locations</h3>
+        <Select
+         showSearch
+          style={{ width: 200 }}
+          placeholder="Filter by locations"
+          allowClear
+          onChange={handleFilterLocationChange}
+        >
+          {cities.map((city) => (
+            <Select.Option key={city} value={city}>
+              {city}
+            </Select.Option>
+          ))}
+        </Select>
         <h3>Sort order</h3>
-        <Select style={{ width: 120 }} defaultValue="asc" onChange={handleSortOrderChange}>
+        <Select style={{ width: 120 }} onChange={handleSortOrderChange}>
           <Select.Option value="asc">Ascending</Select.Option>
           <Select.Option value="desc">Descending</Select.Option>
         </Select>
+        <Button type="primary" onClick={handleFilter}>
+          Apply Sort 
+        </Button>
+
       </div>
       <div style={{ marginTop: 16 }}>
       <Row gutter={[16,24]}>
         {dogs.length > 0 ? (
           dogs.map((dog) => (
-            <Col className="gutter-row" span={8} key={dog.id}>
+            <Col className="gutter-row" span={6} key={dog.id}>
               <Card
                 style={{ width: 300, marginBottom: 16 }}
                 cover={<img alt={dog.breed} src={dog.img} />}
