@@ -86,6 +86,7 @@ const SearchPage: React.FC<SearchPageProps> = ({ apiUrl }) => {
         headers: {
           'Content-Type': 'application/json',
         },
+        body: JSON.stringify({"size":"1000"})
       });
       if (response.ok) {
         const data = await response.json();
